@@ -38,6 +38,37 @@ jobs:
             CODE_SIGNING_ALLOWED=NO \
             | tee build.log | xcbeautify
 
+      - name: Archive app for device (unsigned)
+        run: |
+          set -o pipefail
+          xcodebuild archive \
+            -project APIMonitoring.xcodeproj \
+            -scheme APIMonitoring \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/APIMonitoring.xcarchive \
+            -configuration Release \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            | tee archive.log | xcbeautify
+
+      - name: Package unsigned IPA
+        run: |
+          APP_PATH="build/APIMonitoring.xcarchive/Products/Applications/APIMonitoring.app"
+          test -d "$APP_PATH"
+          mkdir -p build/Payload
+          cp -R "$APP_PATH" build/Payload/
+          cd build
+          zip -qry APIMonitoring-unsigned.ipa Payload
+          cd ..
+          ls -lh build/APIMonitoring-unsigned.ipa
+
+      - name: Upload unsigned IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: APIMonitoring-unsigned-ipa
+          path: build/APIMonitoring-unsigned.ipa
+          if-no-files-found: error
+
       - name: Upload raw build log
         if: always()
         uses: actions/upload-artifact@v4
