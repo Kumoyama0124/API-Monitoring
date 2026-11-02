@@ -1,7 +1,7 @@
 name: APIMonitoring
 
 options:
-  bundleIdPrefix: com.kumoyama
+  bundleIdPrefix: com.gymbull
   deploymentTarget:
     iOS: "26.0"
   createIntermediateGroups: true
@@ -24,7 +24,7 @@ targets:
     info:
       path: App/Info.plist
       properties:
-        CFBundleDisplayName: API监控
+        CFBundleDisplayName: API GYMBULL
         UILaunchScreen: {}
         UISupportedInterfaceOrientations:
           - UIInterfaceOrientationPortrait
@@ -34,7 +34,7 @@ targets:
         ITSAppUsesNonExemptEncryption: false
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.kumoyama.apimonitoring
+        PRODUCT_BUNDLE_IDENTIFIER: com.gymbull.api.monitoring
 
   APIMonitoringTests:
     type: bundle.unit-test
@@ -45,7 +45,7 @@ targets:
       - target: APIMonitoring
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: com.kumoyama.apimonitoring.tests
+        PRODUCT_BUNDLE_IDENTIFIER: com.gymbull.api.monitoring.tests
         TEST_HOST: "$(BUILT_PRODUCTS_DIR)/APIMonitoring.app/APIMonitoring"
         BUNDLE_LOADER: "$(TEST_HOST)"
 
