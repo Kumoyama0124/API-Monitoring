@@ -3,8 +3,7 @@ import Foundation
 /// 各平台余额/消费查询的统一入口。
 /// 每个平台的 parseXxx 方法为纯函数，便于单元测试。
 enum BalanceService {
-    static func fetchBalance(for account: MonitorAccount, apiKey: String) async throws -> BalanceInfo {
-        guard !apiKey.isEmpty else { throw BalanceError.missingAPIKey }
+    static func fetchBalance(for account: MonitorAccount, apiKey: String, cookieHeader: String = "") async throws -> BalanceInfo {
         switch account.kind {
         case .deepseek:
             return try await fetchDeepSeek(account: account, apiKey: apiKey)
@@ -18,9 +17,56 @@ enum BalanceService {
             return try await fetchOpenAICosts(account: account, apiKey: apiKey)
         case .anthropic:
             return try await fetchAnthropicCosts(account: account, apiKey: apiKey)
+        case .zhipu, .qwen, .xiaomi, .xai:
+            return try await fetchWebSession(account: account, cookieHeader: cookieHeader)
         case .generic:
             return try await fetchGeneric(account: account, apiKey: apiKey)
         }
+    }
+
+    // MARK: - 网页登录平台（智谱 / 千问 / 小米 / xAI）
+
+    /// 用保存在钥匙串里的 Cookie 请求官网同款余额接口
+    private static func fetchWebSession(account: MonitorAccount, cookieHeader: String) async throws -> BalanceInfo {
+        guard !cookieHeader.isEmpty else { throw BalanceError.missingWebSession }
+
+        let apiURLString = account.webAPIURL.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !apiURLString.isEmpty else {
+            throw BalanceError.decode("尚未配置余额接口地址：请在编辑账户的「网页接口配置」里填写")
+        }
+        guard let url = URL(string: apiURLString), url.scheme == "http" || url.scheme == "https" else {
+            throw BalanceError.invalidURL(apiURLString)
+        }
+
+        var headers = [
+            "Cookie": cookieHeader,
+            "User-Agent": "Mozilla/5.0 (iPhone; CPU iPhone OS 26_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/26.0 Mobile/15E148 Safari/604.1",
+            "Accept": "application/json, text/plain, */*"
+        ]
+        if let referer = URL(string: account.effectiveWebLoginURL) {
+            headers["Referer"] = referer.absoluteString
+            if let host = url.host { headers["Origin"] = "https://\(host)" }
+        }
+
+        let data = try await httpGet(url: url, headers: headers)
+        return try parseWebSession(data, account: account)
+    }
+
+    static func parseWebSession(_ data: Data, account: MonitorAccount) throws -> BalanceInfo {
+        let json = try JSONUtils.jsonDictionary(from: data)
+        let currency: String
+        if account.webCurrencyPath.isEmpty {
+            currency = "CNY"
+        } else {
+            currency = JSONUtils.asString(JSONUtils.resolve(account.webCurrencyPath, in: json)) ?? "CNY"
+        }
+        let remaining = JSONUtils.asDouble(JSONUtils.resolve(account.webRemainingPath, in: json))
+        let granted = JSONUtils.asDouble(JSONUtils.resolve(account.webGrantedPath, in: json))
+        let used = JSONUtils.asDouble(JSONUtils.resolve(account.webUsedPath, in: json))
+        if remaining == nil && granted == nil && used == nil {
+            throw BalanceError.decode("配置的 JSON 路径均未取到数值，请检查「网页接口配置」")
+        }
+        return BalanceInfo(currency: currency, granted: granted, used: used, remaining: remaining)
     }
 
     // MARK: - DeepSeek

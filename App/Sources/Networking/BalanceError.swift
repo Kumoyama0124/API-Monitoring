@@ -4,6 +4,7 @@ import Foundation
 enum BalanceError: LocalizedError {
     case invalidURL(String)
     case missingAPIKey
+    case missingWebSession
     case http(statusCode: Int, body: String)
     case network(String)
     case decode(String)
@@ -15,9 +16,11 @@ enum BalanceError: LocalizedError {
             return "无效的 URL：\(url)"
         case .missingAPIKey:
             return "未配置 API Key"
+        case .missingWebSession:
+            return "尚未登录：请在编辑账户里完成网页登录并保存 Cookie"
         case .http(let statusCode, let body):
             let trimmed = String(body.prefix(200))
-            return trimmed.isEmpty ? "HTTP 错误 \(statusCode)" : "HTTP \(statusCode)：\(trimmed)"
+            return trimmed.isEmpty ? "HTTP 错误 \(statusCode)（Cookie 可能已过期，请重新网页登录）" : "HTTP \(statusCode)：\(trimmed)"
         case .network(let message):
             return "网络错误：\(message)"
         case .decode(let message):

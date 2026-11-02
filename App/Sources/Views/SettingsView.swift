@@ -7,7 +7,7 @@ struct SettingsView: View {
     var body: some View {
         Form {
             Section {
-                Text("本应用完全在本地运行：账户信息仅保存在本机 UserDefaults，API Key 保存在 iOS 钥匙串（Keychain），不会上传到任何服务器。查询余额时直接从设备请求对应平台接口。")
+                Text("本应用完全在本地运行：账户信息仅保存在本机 UserDefaults，API Key 与网页登录的 Cookie 保存在 iOS 钥匙串（Keychain），不会上传到任何服务器。查询余额时直接从设备请求对应平台接口。")
                     .font(.footnote)
                     .foregroundStyle(.secondary)
             } header: {
@@ -16,6 +16,7 @@ struct SettingsView: View {
 
             Section("提示") {
                 Text("OpenAI / Anthropic 为后付费平台，显示的是近 30 天消费统计，需要管理员密钥。")
+                Text("智谱 GLM、通义千问、小米、xAI 无公开余额 API，使用网页登录方式：登录官网保存 Cookie 后，用官网同款接口查询。Cookie 过期时重新登录即可。")
                 Text("其余平台显示预付费余额，使用普通 API Key 即可。")
             }
             .font(.footnote)
@@ -28,7 +29,7 @@ struct SettingsView: View {
             } header: {
                 Text("关于")
             } footer: {
-                Text("API GYMBULL v1.0 · SwiftUI · Liquid Glass")
+                Text("API监控 v1.1 · SwiftUI · Liquid Glass")
             }
 
             Section {

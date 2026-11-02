@@ -44,11 +44,15 @@ final class AccountStore: ObservableObject {
         accounts.removeAll { $0.id == id }
         history.removeValue(forKey: id)
         KeychainStore.delete(key: id.uuidString)
+        KeychainStore.delete(key: "webcookie." + id.uuidString)
         persist()
     }
 
     func deleteAll() {
-        for account in accounts { KeychainStore.delete(key: account.id.uuidString) }
+        for account in accounts {
+            KeychainStore.delete(key: account.id.uuidString)
+            KeychainStore.delete(key: "webcookie." + account.id.uuidString)
+        }
         accounts = []
         history = [:]
         persist()
@@ -62,6 +66,16 @@ final class AccountStore: ObservableObject {
 
     func setAPIKey(_ key: String, for account: MonitorAccount) {
         KeychainStore.set(key: account.id.uuidString, value: key)
+    }
+
+    // MARK: - 网页登录 Cookie
+
+    func webCookieHeader(for account: MonitorAccount) -> String {
+        KeychainStore.get(key: "webcookie." + account.id.uuidString) ?? ""
+    }
+
+    func setWebCookieHeader(_ value: String, for account: MonitorAccount) {
+        KeychainStore.set(key: "webcookie." + account.id.uuidString, value: value)
     }
 
     // MARK: - 快照
@@ -78,9 +92,10 @@ final class AccountStore: ObservableObject {
         defer { refreshingIDs.remove(account.id) }
 
         let key = apiKey(for: account)
+        let cookieHeader = webCookieHeader(for: account)
         let snapshot: BalanceSnapshot
         do {
-            let info = try await BalanceService.fetchBalance(for: account, apiKey: key)
+            let info = try await BalanceService.fetchBalance(for: account, apiKey: key, cookieHeader: cookieHeader)
             snapshot = BalanceSnapshot(accountID: account.id, state: .success(info))
         } catch {
             snapshot = BalanceSnapshot(accountID: account.id, state: .failure(error.localizedDescription))
