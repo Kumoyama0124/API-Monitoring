@@ -37,6 +37,19 @@ enum ProviderKind: String, Codable, CaseIterable, Identifiable {
         }
     }
 
+    /// 资源目录中的官方品牌图标；自定义平台无图标，回退到 emoji
+    var brandIconName: String? {
+        switch self {
+        case .deepseek: return "brand.deepseek"
+        case .moonshot: return "brand.moonshot"
+        case .siliconflow: return "brand.siliconflow"
+        case .openrouter: return "brand.openrouter"
+        case .openai: return "brand.openai"
+        case .anthropic: return "brand.anthropic"
+        case .generic: return nil
+        }
+    }
+
     var emoji: String {
         switch self {
         case .deepseek: return "🐋"

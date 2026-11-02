@@ -1,6 +1,7 @@
 import SwiftUI
 
-/// 添加 / 编辑账户的表单
+/// 添加 / 编辑账户的表单。用户只需要选平台、填 API Key，
+/// API 地址与请求头等收进"高级选项"（已预填默认值）。
 struct AccountFormView: View {
     enum Mode {
         case add
@@ -38,11 +39,7 @@ struct AccountFormView: View {
                     kindPicker
                 }
                 Section("基本信息") {
-                    TextField("名称（如 DeepSeek 主号）", text: $name)
-                    TextField("API 地址", text: $baseURL)
-                        .keyboardType(.URL)
-                        .textInputAutocapitalization(.never)
-                        .autocorrectionDisabled()
+                    TextField("名称（可选，如 DeepSeek 主号）", text: $name)
                     SecureField(kind.keyPlaceholder, text: $apiKey)
                         .textInputAutocapitalization(.never)
                         .autocorrectionDisabled()
@@ -54,6 +51,24 @@ struct AccountFormView: View {
                 }
                 if kind == .generic {
                     genericSection
+                }
+                Section {
+                    DisclosureGroup("高级选项") {
+                        TextField("API 地址", text: $baseURL)
+                            .keyboardType(.URL)
+                            .textInputAutocapitalization(.never)
+                            .autocorrectionDisabled()
+                        if kind == .generic {
+                            TextField("认证请求头名称", text: $genericHeaderName)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                            TextField("认证值前缀（如 Bearer ）", text: $genericTokenPrefix)
+                                .textInputAutocapitalization(.never)
+                                .autocorrectionDisabled()
+                        }
+                    }
+                } footer: {
+                    Text("API 地址已预填官方默认值，一般无需修改；使用中转站或镜像站时才需要调整。同一平台可以添加任意多个账号，各自独立统计。")
                 }
                 if let errorMessage {
                     Section {
@@ -81,7 +96,7 @@ struct AccountFormView: View {
     // MARK: - 平台选择
 
     private var kindPicker: some View {
-        Section("选择平台") {
+        Section {
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 96), spacing: 10)], spacing: 10) {
                 ForEach(ProviderKind.allCases) { candidate in
                     Button {
@@ -90,29 +105,28 @@ struct AccountFormView: View {
                             baseURL = candidate.defaultBaseURL
                         }
                     } label: {
-                        VStack(spacing: 4) {
-                            Text(candidate.emoji)
-                                .font(.title3)
+                        VStack(spacing: 6) {
+                            PlatformIcon(kind: candidate, size: 40)
                             Text(candidate.shortName)
                                 .font(.caption)
                                 .lineLimit(1)
+                                .foregroundStyle(.primary)
                         }
                         .frame(maxWidth: .infinity)
-                        .padding(.vertical, 10)
-                        .background(
-                            kind == candidate
-                                ? Color.accentColor.opacity(0.18)
-                                : Color(.secondarySystemGroupedBackground)
-                        )
-                        .overlay(
-                            RoundedRectangle(cornerRadius: 10)
-                                .stroke(kind == candidate ? Color.accentColor : .clear, lineWidth: 1.5)
+                        .padding(.vertical, 12)
+                        .glassEffect(
+                            kind == candidate ? .regular.tint(.accentColor).interactive() : .regular,
+                            in: .rect(cornerRadius: 16)
                         )
                     }
                     .buttonStyle(.plain)
                 }
             }
             .padding(.vertical, 4)
+        } header: {
+            Text("选择平台")
+        } footer: {
+            Text("支持为同一平台添加多个账号。")
         }
     }
 
@@ -120,12 +134,6 @@ struct AccountFormView: View {
         Section {
             TextField("接口路径或完整 URL", text: $genericPath)
                 .keyboardType(.URL)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            TextField("认证请求头名称", text: $genericHeaderName)
-                .textInputAutocapitalization(.never)
-                .autocorrectionDisabled()
-            TextField("认证值前缀（如 Bearer ）", text: $genericTokenPrefix)
                 .textInputAutocapitalization(.never)
                 .autocorrectionDisabled()
             TextField("剩余余额 JSON 路径", text: $genericRemainingPath)

@@ -1,7 +1,7 @@
 import SwiftUI
 import Charts
 
-/// 账户详情：当前余额/消费、每日消费图表、历史记录
+/// 账户详情：玻璃卡片布局——状态卡、余额趋势卡、每日消费卡、历史记录卡、平台信息卡
 struct AccountDetailView: View {
     @EnvironmentObject private var store: AccountStore
     @Environment(\.dismiss) private var dismiss
@@ -19,15 +19,30 @@ struct AccountDetailView: View {
         store.lastSnapshot(for: accountID)
     }
 
-    private var chartPoints: [ChartPoint] {
+    private var trendPoints: [TrendPoint] {
+        (store.history[accountID] ?? [])
+            .compactMap { snapshot -> TrendPoint? in
+                guard let remaining = snapshot.balanceInfo?.remaining else { return nil }
+                return TrendPoint(date: snapshot.date, amount: remaining)
+            }
+            .sorted { $0.date < $1.date }
+    }
+
+    private var spendPoints: [SpendPoint] {
         guard let daily = latest?.balanceInfo?.dailySpend else { return [] }
         return daily.compactMap { point in
             guard let date = JSONUtils.utcDate(fromDay: point.day) else { return nil }
-            return ChartPoint(date: date, amount: point.amount)
+            return SpendPoint(date: date, amount: point.amount)
         }
     }
 
-    private struct ChartPoint: Identifiable {
+    private struct TrendPoint: Identifiable {
+        let id = UUID()
+        let date: Date
+        let amount: Double
+    }
+
+    private struct SpendPoint: Identifiable {
         let id = UUID()
         let date: Date
         let amount: Double
@@ -36,7 +51,7 @@ struct AccountDetailView: View {
     var body: some View {
         Group {
             if let account {
-                content(account)
+                cards(account)
             } else {
                 ContentUnavailableView("账户已删除", systemImage: "questionmark.circle")
             }
@@ -60,15 +75,22 @@ struct AccountDetailView: View {
     }
 
     @ViewBuilder
-    private func content(_ account: MonitorAccount) -> some View {
-        List {
-            summarySection(account)
-            if !chartPoints.isEmpty {
-                chartSection
+    private func cards(_ account: MonitorAccount) -> some View {
+        ScrollView {
+            VStack(spacing: 14) {
+                summaryCard(account)
+                if trendPoints.count >= 2 {
+                    trendCard
+                }
+                if !spendPoints.isEmpty {
+                    spendCard
+                }
+                recordsCard
+                infoCard(account)
             }
-            historySection
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
         }
-        .listStyle(.insetGrouped)
         .refreshable {
             await store.refresh(account)
         }
@@ -103,22 +125,53 @@ struct AccountDetailView: View {
         }
     }
 
-    // MARK: - 概要
+    // MARK: - 状态卡
 
     @ViewBuilder
-    private func summarySection(_ account: MonitorAccount) -> some View {
-        Section("当前状态") {
+    private func summaryCard(_ account: MonitorAccount) -> some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(spacing: 10) {
+                PlatformIcon(kind: account.kind, size: 40)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(account.name)
+                        .font(.headline)
+                    Text(account.kind.displayName)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+                Spacer()
+                if store.refreshingIDs.contains(accountID) {
+                    ProgressView()
+                }
+            }
+
+            Divider()
+
             if let snapshot = latest {
                 switch snapshot.state {
                 case .success(let info):
-                    row("币种", info.currency.uppercased())
-                    row("剩余余额", info.remaining.map { AmountFormatter.string($0, currency: info.currency) })
-                    row("赠送金额", info.granted.map { AmountFormatter.string($0, currency: info.currency) })
-                    if info.remaining != nil {
-                        row("已用金额", info.used.map { AmountFormatter.string($0, currency: info.currency) })
+                    if let remaining = info.remaining {
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(AmountFormatter.string(remaining, currency: info.currency))
+                                .font(.system(size: 34, weight: .bold, design: .rounded))
+                                .monospacedDigit()
+                            Text("剩余余额")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     } else if let used = info.used {
-                        row("近 30 天消费", AmountFormatter.string(used, currency: info.currency))
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text(AmountFormatter.string(used, currency: info.currency))
+                                .font(.system(size: 34, weight: .bold, design: .rounded))
+                                .monospacedDigit()
+                            Text("近 30 天消费")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                     }
+                    Divider()
+                    row("赠送金额", info.granted.map { AmountFormatter.string($0, currency: info.currency) })
+                    row("已用金额", info.used.map { AmountFormatter.string($0, currency: info.currency) })
                     HStack {
                         Text("更新时间")
                         Spacer()
@@ -136,47 +189,88 @@ struct AccountDetailView: View {
                 Text("尚未获取数据，下拉或点按菜单刷新")
                     .foregroundStyle(.secondary)
             }
-            LabeledContent("平台", value: account.kind.displayName)
-            LabeledContent("API 地址", value: account.effectiveBaseURL)
-                .lineLimit(2)
         }
+        .font(.subheadline)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassEffect(.regular, in: .rect(cornerRadius: 22))
     }
 
-    // MARK: - 每日消费图表
+    // MARK: - 余额趋势卡
 
-    private var chartSection: some View {
-        Section("每日消费（近 30 天）") {
-            Chart(chartPoints) { point in
+    private var trendCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("余额趋势", systemImage: "chart.line.uptrend.xyaxis")
+                .font(.subheadline.weight(.semibold))
+            Chart(trendPoints) { point in
+                AreaMark(
+                    x: .value("时间", point.date),
+                    y: .value("余额", point.amount)
+                )
+                .foregroundStyle(.linearGradient(
+                    colors: [Color.accentColor.opacity(0.35), Color.accentColor.opacity(0.02)],
+                    startPoint: .top, endPoint: .bottom
+                ))
+                .interpolationMethod(.catmullRom)
+                LineMark(
+                    x: .value("时间", point.date),
+                    y: .value("余额", point.amount)
+                )
+                .foregroundStyle(Color.accentColor)
+                .lineStyle(StrokeStyle(lineWidth: 2.5, lineCap: .round))
+                .interpolationMethod(.catmullRom)
+                .symbol(Circle())
+            }
+            .frame(height: 150)
+        }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassEffect(.regular, in: .rect(cornerRadius: 22))
+    }
+
+    // MARK: - 每日消费卡
+
+    private var spendCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("每日消费（近 30 天）", systemImage: "chart.bar.fill")
+                .font(.subheadline.weight(.semibold))
+            Chart(spendPoints) { point in
                 BarMark(
                     x: .value("日期", point.date, unit: .day),
                     y: .value("金额", point.amount)
                 )
+                .foregroundStyle(Color.accentColor.gradient)
             }
             .chartXAxis {
                 AxisMarks(values: .stride(by: .day, count: 7))
             }
-            .frame(height: 180)
+            .frame(height: 150)
         }
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassEffect(.regular, in: .rect(cornerRadius: 22))
     }
 
-    // MARK: - 历史记录
+    // MARK: - 历史记录卡
 
-    private var historySection: some View {
-        Section("历史记录") {
+    private var recordsCard: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("历史记录", systemImage: "clock.arrow.circlepath")
+                .font(.subheadline.weight(.semibold))
             let snapshots = store.history[accountID] ?? []
             if snapshots.isEmpty {
                 Text("暂无记录")
                     .foregroundStyle(.secondary)
             }
-            ForEach(snapshots) { snapshot in
+            ForEach(snapshots.prefix(20)) { snapshot in
                 VStack(alignment: .leading, spacing: 3) {
                     HStack {
                         Text(snapshot.date, format: .dateTime.year().month().day().hour().minute())
                             .foregroundStyle(.secondary)
                         Spacer()
                         Text(snapshotSummary(snapshot))
-                            .font(.subheadline)
                             .fontWeight(.medium)
+                            .monospacedDigit()
                     }
                     if let message = snapshot.errorMessage {
                         Text(message)
@@ -185,11 +279,35 @@ struct AccountDetailView: View {
                             .lineLimit(2)
                     }
                 }
-                .font(.subheadline)
-                .padding(.vertical, 2)
+                .padding(.vertical, 3)
+                if snapshot.id != snapshots.prefix(20).last?.id {
+                    Divider()
+                }
             }
         }
+        .font(.subheadline)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassEffect(.regular, in: .rect(cornerRadius: 22))
     }
+
+    // MARK: - 平台信息卡
+
+    private func infoCard(_ account: MonitorAccount) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Label("平台信息", systemImage: "info.circle")
+                .font(.subheadline.weight(.semibold))
+            row("平台", account.kind.displayName)
+            row("API 地址", account.effectiveBaseURL)
+            row("多账号", "同平台可添加任意数量的账号")
+        }
+        .font(.subheadline)
+        .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassEffect(.regular, in: .rect(cornerRadius: 22))
+    }
+
+    // MARK: - 辅助
 
     private func snapshotSummary(_ snapshot: BalanceSnapshot) -> String {
         switch snapshot.state {
@@ -207,12 +325,13 @@ struct AccountDetailView: View {
     }
 
     private func row(_ label: String, _ value: String?) -> some View {
-        HStack {
+        HStack(alignment: .firstTextBaseline) {
             Text(label)
             Spacer()
             if let value {
                 Text(value)
                     .monospacedDigit()
+                    .multilineTextAlignment(.trailing)
             } else {
                 Text("—").foregroundStyle(.secondary)
             }

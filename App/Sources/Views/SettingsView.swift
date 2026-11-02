@@ -28,7 +28,7 @@ struct SettingsView: View {
             } header: {
                 Text("关于")
             } footer: {
-                Text("API Monitoring v1.0 · SwiftUI 构建")
+                Text("API Monitoring v1.1 · SwiftUI · Liquid Glass")
             }
 
             Section {

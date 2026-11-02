@@ -11,7 +11,7 @@ struct DashboardView: View {
                 if store.accounts.isEmpty {
                     emptyState
                 } else {
-                    accountList
+                    accountCards
                 }
             }
             .navigationTitle("API 监控")
@@ -37,7 +37,6 @@ struct DashboardView: View {
             .sheet(item: $accountToEdit) { account in
                 AccountFormView(mode: .edit(account))
             }
-            .refreshable { await store.refreshAll() }
             .task { await store.refreshIfStale() }
         }
     }
@@ -46,80 +45,87 @@ struct DashboardView: View {
         ContentUnavailableView {
             Label("还没有账户", systemImage: "gauge.with.needle")
         } description: {
-            Text("添加 API 平台账户，随时查看余额与使用情况")
+            Text("添加 API 平台账户，随时查看余额与使用情况\n同一平台可以添加多个账号")
         } actions: {
             Button("添加账户") { showingAdd = true }
-                .buttonStyle(.borderedProminent)
+                .buttonStyle(.glassProminent)
         }
     }
 
-    private var accountList: some View {
-        List {
-            ForEach(store.accounts) { account in
-                NavigationLink {
-                    AccountDetailView(accountID: account.id)
-                } label: {
-                    AccountCard(account: account)
-                }
-                .swipeActions(edge: .trailing, allowsFullSwipe: false) {
-                    Button(role: .destructive) {
-                        store.delete(account.id)
+    private var accountCards: some View {
+        ScrollView {
+            LazyVStack(spacing: 14) {
+                ForEach(store.accounts) { account in
+                    NavigationLink {
+                        AccountDetailView(accountID: account.id)
                     } label: {
-                        Label("删除", systemImage: "trash")
+                        AccountCard(account: account)
                     }
-                    Button {
-                        accountToEdit = account
-                    } label: {
-                        Label("编辑", systemImage: "pencil")
-                    }
-                    Button {
-                        Task { await store.refresh(account) }
-                    } label: {
-                        Label("刷新", systemImage: "arrow.clockwise")
-                    }
-                }
-                .contextMenu {
-                    Button {
-                        Task { await store.refresh(account) }
-                    } label: {
-                        Label("刷新", systemImage: "arrow.clockwise")
-                    }
-                    Button {
-                        accountToEdit = account
-                    } label: {
-                        Label("编辑", systemImage: "pencil")
-                    }
-                    Button(role: .destructive) {
-                        store.delete(account.id)
-                    } label: {
-                        Label("删除", systemImage: "trash")
+                    .buttonStyle(.plain)
+                    .contextMenu {
+                        Button {
+                            Task { await store.refresh(account) }
+                        } label: {
+                            Label("刷新", systemImage: "arrow.clockwise")
+                        }
+                        Button {
+                            accountToEdit = account
+                        } label: {
+                            Label("编辑", systemImage: "pencil")
+                        }
+                        Button(role: .destructive) {
+                            store.delete(account.id)
+                        } label: {
+                            Label("删除", systemImage: "trash")
+                        }
                     }
                 }
             }
+            .padding(.horizontal, 16)
+            .padding(.vertical, 8)
         }
-        .listStyle(.insetGrouped)
+        .refreshable { await store.refreshAll() }
     }
 }
 
-/// 账户卡片：图标 + 名称 + 剩余/消费概览
+/// 平台官方品牌图标；自定义平台回退到 emoji
+struct PlatformIcon: View {
+    let kind: ProviderKind
+    var size: CGFloat = 44
+
+    var body: some View {
+        if let iconName = kind.brandIconName {
+            Image(iconName)
+                .resizable()
+                .scaledToFit()
+                .frame(width: size, height: size)
+                .clipShape(.rect(cornerRadius: size * 0.24))
+        } else {
+            ZStack {
+                Circle()
+                    .fill(Color.accentColor.opacity(0.15))
+                Text(kind.emoji)
+                    .font(.system(size: size * 0.48))
+            }
+            .frame(width: size, height: size)
+        }
+    }
+}
+
+/// 账户卡片：图标 + 名称 + 剩余/消费概览，Liquid Glass 质感
 struct AccountCard: View {
     @EnvironmentObject private var store: AccountStore
     let account: MonitorAccount
 
     var body: some View {
         HStack(spacing: 12) {
-            ZStack {
-                Circle()
-                    .fill(Color.accentColor.opacity(0.15))
-                Text(account.kind.emoji)
-                    .font(.title2)
-            }
-            .frame(width: 44, height: 44)
+            PlatformIcon(kind: account.kind, size: 44)
 
             VStack(alignment: .leading, spacing: 4) {
                 Text(account.name)
                     .font(.headline)
                     .lineLimit(1)
+                    .foregroundStyle(.primary)
                 subtitle
                 usageProgress
             }
@@ -132,7 +138,9 @@ struct AccountCard: View {
                 statusView
             }
         }
-        .padding(.vertical, 4)
+        .padding(14)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .glassEffect(.regular, in: .rect(cornerRadius: 22))
         .contentShape(Rectangle())
     }
 
@@ -153,12 +161,14 @@ struct AccountCard: View {
                     Text(AmountFormatter.string(remaining, currency: info.currency))
                         .font(.title3).bold()
                         .monospacedDigit()
+                        .foregroundStyle(.primary)
                     Text("剩余")
                         .font(.caption2).foregroundStyle(.secondary)
                 } else if let used = info.used {
                     Text(AmountFormatter.string(used, currency: info.currency))
                         .font(.title3).bold()
                         .monospacedDigit()
+                        .foregroundStyle(.primary)
                     Text("近 30 天消费")
                         .font(.caption2).foregroundStyle(.secondary)
                 } else {

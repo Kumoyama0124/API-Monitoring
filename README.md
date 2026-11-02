@@ -2,7 +2,7 @@
 
 ![iOS Build](https://github.com/Kumoyama0124/API-Monitoring/actions/workflows/build.yml/badge.svg)
 
-一款监控各大 API 平台**余额与使用情况**的 iOS 应用。SwiftUI 编写，完全本地运行——账户数据只存在本机，API Key 保存在 iOS 钥匙串（Keychain），不上传到任何服务器。
+一款监控各大 API 平台**余额与使用情况**的 iOS 应用。SwiftUI 编写，采用 iOS 26 Liquid Glass 设计（玻璃卡片 + 卡片式图表），完全本地运行——账户数据只存在本机，API Key 保存在 iOS 钥匙串（Keychain），不上传到任何服务器。
 
 ## 功能特性
 
@@ -61,7 +61,8 @@ open APIMonitoring.xcodeproj
 ## 技术栈
 
 - SwiftUI + Swift Concurrency（async/await、TaskGroup 并发刷新）
-- iOS 17+，Swift Charts 绘制消费图表
+- iOS 26+，Liquid Glass 设计，Swift Charts 绘制余额趋势与每日消费图表
+- 平台官方图标来源：[Oasisic-Icons](https://github.com/Hawaiine/Oasisic-Icons) → [Orz-3/mini](https://github.com/Orz-3/mini) → icon.horse / 站点官方图标
 - 目标代码零依赖：无第三方包，解析基于 Foundation
 
 ## 许可
