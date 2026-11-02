@@ -77,7 +77,7 @@ final class APIMonitoringTests: XCTestCase {
         let info = try BalanceService.parseOpenRouter(data)
         XCTAssertEqual(info.granted, 10.5)
         XCTAssertEqual(info.used, 3.0)
-        XCTAssertEqual(info.remaining, 7.5, accuracy: 0.0001)
+        XCTAssertEqual(info.remaining ?? 0, 7.5, accuracy: 0.0001)
         XCTAssertEqual(info.currency, "USD")
     }
 
